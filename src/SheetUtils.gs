@@ -65,3 +65,12 @@ function appendRowByHeaders_(sheet, headers, rowObj) {
   const row = headers.map(h => (rowObj[h] !== undefined ? rowObj[h] : ''));
   sheet.appendRow(row);
 }
+
+/** 既存行の特定列だけを、ヘッダー名指定で更新する(列の並びが変わっても安全) */
+function updateRowByHeaders_(sheet, rowIndex, fieldsObj) {
+  const headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  Object.keys(fieldsObj).forEach(key => {
+    const col = headerRow.indexOf(key) + 1;
+    if (col > 0) sheet.getRange(rowIndex, col).setValue(fieldsObj[key]);
+  });
+}

@@ -72,10 +72,9 @@ function getApprovedUnsentRows_() {
 function markRowSent_(rowIndex, note) {
   const config = getConfig();
   const sheet = getSheetByName_(config.reviewSheetName);
-  const headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  const col = name => headerRow.indexOf(name) + 1;
-
-  sheet.getRange(rowIndex, col('送信済み')).setValue(true);
-  sheet.getRange(rowIndex, col('送信日時')).setValue(new Date());
-  sheet.getRange(rowIndex, col('ステータス')).setValue(note || '送信済み');
+  updateRowByHeaders_(sheet, rowIndex, {
+    '送信済み': true,
+    '送信日時': new Date(),
+    'ステータス': note || '送信済み',
+  });
 }
