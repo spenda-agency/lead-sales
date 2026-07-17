@@ -28,8 +28,15 @@ Claude APIで1件ずつパーソナライズした下書きを作って「リー
 対象にする仕組みも含んでいる。
 
 - 行動データはHubSpot CRM API(Contacts)から取得する。サイト訪問数は
-  標準プロパティ`hs_analytics_num_page_views`、メール開封数は
-  `hs_email_open`(アカウントによって実際のプロパティ名が異なる場合あり)
+  標準プロパティ`hs_analytics_num_page_views`(トラッキングコード必須)、
+  メール開封は既定で`hs_sales_email_last_opened`(直近のセールスメール
+  開封日時)を使う。**`hs_email_open`はマーケティングメールの開封数
+  プロパティでMarketing Hub専用のため、Sales Hubのみの契約では使えない**
+  (Marketing Hubも契約している場合は`HUBSPOT_EMAIL_OPEN_PROPERTY_TYPE`を
+  `count`にして`hs_email_open`を指定すれば累積カウント方式に切り替え可能)
+- 開封シグナルが「日時」方式の場合、1回のスコアリング実行で複数回開封が
+  あっても1件としてしか加点されない(件数を区別できないSales Hub Starter
+  の制約による割り切り)
 - 「スコア設定」シートに配点(サイト訪問1回=2点、メール開封1回=1点)と
   通知閾値(5点)を用意している。運用しながら**このシートの数値を直接
   書き換えるだけで**調整できる(コード変更不要)
@@ -84,8 +91,32 @@ Apps Script エディタ > プロジェクトの設定 > スクリプト プロ�
 | `HUBSPOT_HOUSE_LIST_ID` | 任意 | 特定の静的リストだけを対象にしたい場合のリストID。未設定なら全コンタクトが対象 |
 | `HUBSPOT_MAX_CONTACTS` | - | 1回の実行でスコアリングする上限件数(デフォルト500) |
 | `HUBSPOT_PAGEVIEWS_PROPERTY` / `HUBSPOT_EMAIL_OPEN_PROPERTY` | - | 実際のプロパティ名に合わせて変更可能 |
+| `HUBSPOT_EMAIL_OPEN_PROPERTY_TYPE` | - | `date`(既定値、直近開封日時) または `count`(累積開封数。Marketing Hub契約時のみ) |
 
 設定後、Apps Scriptエディタで `checkConfig` を実行するとログで設定状況を確認できる。
+
+### 3.5 HubSpot側の準備（行動スコアリングを使う場合）
+
+1. **Private Appを作成してトークンを発行する**：HubSpot管理画面の
+   設定(歯車アイコン) > 連携アプリ > プライベートアプリ で新規作成し、
+   スコープに `crm.objects.contacts.read` を付与する（静的リストで絞り込む
+   場合は `crm.lists.read` も）。発行されたトークンを`HUBSPOT_API_TOKEN`に設定
+   - Private App機能自体はStarterプラン以上（無料プランでも一部)で利用可能
+   - **Hub ID（例: 45097073）はアカウント自体を識別するIDで、プロパティ名とは別物。
+     コード側では使わない**
+2. **実際に使えるプロパティ名を確認する**：設定 > プロパティ > 対象のオブジェクトで
+   「コンタクトのプロパティ」を選び、「ページビュー」「メール」等で検索して、
+   自社ポータルで実際に使われている内部名を確認する。テスト用に1件コンタクトの
+   詳細画面を開き、アクティビティに「ページ閲覧」や「メール開封」のログが
+   実際に記録されているかも合わせて見ておくと確実
+   - サイト訪問：自社サイトにHubSpotトラッキングコードが入っていないと
+     `hs_analytics_num_page_views`は増えない
+   - メール開封：Marketing Hub未契約（Sales Hub Starterのみ）の場合は
+     `hs_email_open`が使えないため、既定値の`hs_sales_email_last_opened`
+     (日時)のままにしておく
+3. 上記1・2の内容がコードの既定値と違う場合は、Script Propertiesで
+   `HUBSPOT_PAGEVIEWS_PROPERTY` / `HUBSPOT_EMAIL_OPEN_PROPERTY` /
+   `HUBSPOT_EMAIL_OPEN_PROPERTY_TYPE` を上書きする
 
 ### 4. LINE Webhookを設定する（②を使う場合）
 

@@ -37,8 +37,21 @@ function normalizeHubspotContact_(contact, config) {
     company: props.company || '',
     jobtitle: props.jobtitle || '',
     pageViews: Number(props[config.hubspotPageViewsProperty] || 0),
-    emailOpens: Number(props[config.hubspotEmailOpenProperty] || 0),
+    emailOpenValue: parseEmailOpenValue_(
+      props[config.hubspotEmailOpenProperty], config.hubspotEmailOpenPropertyType
+    ),
   };
+}
+
+/**
+ * 'count' なら累積開封数(数値)として、'date' なら「直近の開封日時」を
+ * 比較しやすいエポックミリ秒に変換して返す。値が無ければ0。
+ */
+function parseEmailOpenValue_(rawValue, type) {
+  if (!rawValue) return 0;
+  if (type === 'count') return Number(rawValue) || 0;
+  const timestamp = new Date(rawValue).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
 function fetchAllContacts_(properties, maxContacts) {

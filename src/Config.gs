@@ -29,10 +29,15 @@ function getConfig() {
     // 未設定の場合は全コンタクトを対象にする(HUBSPOT_MAX_CONTACTSで件数上限)。
     hubspotHouseListId: get('HUBSPOT_HOUSE_LIST_ID', ''),
     hubspotMaxContacts: Number(get('HUBSPOT_MAX_CONTACTS', '500')),
-    // サイト訪問数・メール開封数を表すHubSpotコンタクトプロパティ名。
+    // サイト訪問数を表すHubSpotコンタクトプロパティ名(累積カウント)。
     // アカウントのプランやカスタムプロパティ設定によって名前が異なる場合は変更する。
     hubspotPageViewsProperty: get('HUBSPOT_PAGEVIEWS_PROPERTY', 'hs_analytics_num_page_views'),
-    hubspotEmailOpenProperty: get('HUBSPOT_EMAIL_OPEN_PROPERTY', 'hs_email_open'),
+    // メール開封の signal。既定値はSales Hubの「直近のセールスメール開封日時」。
+    // hs_email_open(マーケティングメール開封数の累積カウント)はMarketing Hub専用のため、
+    // Marketing Hubを契約していない場合は既定値のままでよい。
+    hubspotEmailOpenProperty: get('HUBSPOT_EMAIL_OPEN_PROPERTY', 'hs_sales_email_last_opened'),
+    // 'count'(累積カウントの差分で加点) or 'date'(基準日時より新しい開封が1件でもあれば加点)
+    hubspotEmailOpenPropertyType: get('HUBSPOT_EMAIL_OPEN_PROPERTY_TYPE', 'date'),
 
     // --- スプレッドシートのタブ名 ---
     reviewSheetName: get('REVIEW_SHEET_NAME', 'リード確認'),

@@ -5,11 +5,16 @@
  * - 未通知スコア(基準値からの増分に配点をかけた値)
  * を保持する。閾値を超えたら通知し、基準値をその時点の値にリセットする
  * ことで、「また新しい反応があったら再度知らせる」を実現する。
+ *
+ * 「メール開封シグナル」列は HUBSPOT_EMAIL_OPEN_PROPERTY_TYPE の設定によって
+ * 中身が変わる: 'count'なら累積開封数(数値)、'date'(既定値)なら開封日時を
+ * エポックミリ秒に変換した数値。表示上は分かりにくいが、増分/新着判定の
+ * 計算にはどちらも同じ「大きいほど新しい」数値として扱えるため統一している。
  */
 const SCORE_TRACKER_HEADERS = [
   'HubSpotコンタクトID', '会社名', '氏名', 'メールアドレス', '役職',
-  '現在ページビュー数', '現在メール開封数',
-  '基準ページビュー数', '基準メール開封数',
+  '現在ページビュー数', '現在メール開封シグナル',
+  '基準ページビュー数', '基準メール開封シグナル',
   '未通知スコア', '最終通知日時', '最終確認日時',
 ];
 
@@ -35,9 +40,9 @@ function appendNewScoreRow_(sheet, contact) {
     'メールアドレス': contact.email,
     '役職': contact.jobtitle,
     '現在ページビュー数': contact.pageViews,
-    '現在メール開封数': contact.emailOpens,
+    '現在メール開封シグナル': contact.emailOpenValue,
     '基準ページビュー数': contact.pageViews,
-    '基準メール開封数': contact.emailOpens,
+    '基準メール開封シグナル': contact.emailOpenValue,
     '未通知スコア': 0,
     '最終通知日時': '',
     '最終確認日時': new Date(),
@@ -52,7 +57,7 @@ function updateScoreRowProgress_(sheet, rowIndex, contact, score) {
     'メールアドレス': contact.email,
     '役職': contact.jobtitle,
     '現在ページビュー数': contact.pageViews,
-    '現在メール開封数': contact.emailOpens,
+    '現在メール開封シグナル': contact.emailOpenValue,
     '未通知スコア': score,
     '最終確認日時': new Date(),
   });
@@ -62,9 +67,9 @@ function updateScoreRowProgress_(sheet, rowIndex, contact, score) {
 function resetScoreRowAfterNotify_(sheet, rowIndex, contact) {
   updateRowByHeaders_(sheet, rowIndex, {
     '現在ページビュー数': contact.pageViews,
-    '現在メール開封数': contact.emailOpens,
+    '現在メール開封シグナル': contact.emailOpenValue,
     '基準ページビュー数': contact.pageViews,
-    '基準メール開封数': contact.emailOpens,
+    '基準メール開封シグナル': contact.emailOpenValue,
     '未通知スコア': 0,
     '最終通知日時': new Date(),
     '最終確認日時': new Date(),

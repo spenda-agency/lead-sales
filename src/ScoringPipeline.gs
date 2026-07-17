@@ -8,6 +8,7 @@
 function runScoringPipeline() {
   ensureReviewSheet_();
   const sheet = ensureScoreTrackerSheet_();
+  const config = getConfig();
   const scoringConfig = getScoringConfig_();
   const contacts = fetchHouseListContacts_();
   const existingRows = getScoreRowsByContactId_();
@@ -22,11 +23,13 @@ function runScoringPipeline() {
     }
 
     const deltaViews = Math.max(0, contact.pageViews - Number(existing['基準ページビュー数'] || 0));
-    const deltaOpens = Math.max(0, contact.emailOpens - Number(existing['基準メール開封数'] || 0));
-    const score = deltaViews * scoringConfig.pointsPerVisit + deltaOpens * scoringConfig.pointsPerOpen;
+    const openEvents = countEmailOpenEvents_(
+      contact.emailOpenValue, Number(existing['基準メール開封シグナル'] || 0), config.hubspotEmailOpenPropertyType
+    );
+    const score = deltaViews * scoringConfig.pointsPerVisit + openEvents * scoringConfig.pointsPerOpen;
 
     if (score > scoringConfig.threshold) {
-      const lead = buildLeadFromScoredContact_(contact, deltaViews, deltaOpens, score);
+      const lead = buildLeadFromScoredContact_(contact, deltaViews, openEvents, score, config.hubspotEmailOpenPropertyType);
       lead.draftText = generateDraftForLead_(lead);
       appendLeadToReviewSheet_(lead);
       triggeredLeads.push(lead);
@@ -47,8 +50,22 @@ function runScoringPipeline() {
   return triggeredLeads;
 }
 
-function buildLeadFromScoredContact_(contact, deltaViews, deltaOpens, score) {
+/**
+ * 'count'(累積カウント)なら基準値からの増分そのものをイベント数として扱う。
+ * 'date'(直近開封日時)は件数を区別できないため、基準日時より新しい開封が
+ * あれば1件のみとして扱う(Sales Hub Starterの制約による割り切り)。
+ */
+function countEmailOpenEvents_(currentValue, baselineValue, type) {
+  if (type === 'count') return Math.max(0, currentValue - baselineValue);
+  return currentValue > baselineValue ? 1 : 0;
+}
+
+function buildLeadFromScoredContact_(contact, deltaViews, openEvents, score, emailOpenType) {
   const now = new Date();
+  const openText = emailOpenType === 'count'
+    ? `メール開封+${openEvents}回`
+    : (openEvents > 0 ? 'メール新規開封あり' : 'メール開封なし');
+
   return {
     sourceLabel: '④ハウスリスト掘り起こし',
     sourceId: `${contact.id}::${Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyyMMddHHmmss')}`,
@@ -56,7 +73,7 @@ function buildLeadFromScoredContact_(contact, deltaViews, deltaOpens, score) {
     contactName: contact.contactName,
     email: contact.email,
     lineUserId: '',
-    channelDetail: `直近の行動: サイト訪問+${deltaViews}回・メール開封+${deltaOpens}回(スコア${score}点)`,
+    channelDetail: `直近の行動: サイト訪問+${deltaViews}回・${openText}(スコア${score}点)`,
     receivedAt: now,
   };
 }
