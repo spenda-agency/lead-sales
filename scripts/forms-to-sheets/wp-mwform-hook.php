@@ -22,7 +22,9 @@
  *   フォーム ID 別の特殊処理が必要になったら $form_id を分岐させて拡張する。
  *
  * 安全策:
- *   - blocking=false でファイア&忘れる(ユーザー応答を遅らせない)
+ *   - blocking=true + timeout 5s。blocking=false はホスティング環境(mixhost等)の
+ *     cURLで本文送信前に接続が切られ、GAS側に「空ボディ」が届く事象を確認したため
+ *     使用しない。送信失敗してもフォーム処理自体には影響しない
  *   - sslverify=true で証明書検証(GAS の証明書)
  *   - 内部用フィールド(mw_ 系 / recaptcha / wp_nonce / _wp 系)はマスク
  *   - メール送信が成功した時点でフックされる(`mwform_after_send`)→ reCAPTCHA で
@@ -87,12 +89,19 @@ function spenda_forms_after_send($Data) {
         'secret'   => defined('SPENDA_FORM_SECRET') ? SPENDA_FORM_SECRET : '',
     ];
 
-    wp_remote_post(SPENDA_GAS_URL, [
+    $response = wp_remote_post(SPENDA_GAS_URL, [
         'method'    => 'POST',
         'headers'   => ['Content-Type' => 'application/json'],
         'body'      => wp_json_encode($payload),
         'timeout'   => 5,
-        'blocking'  => false,
+        // blocking=false だと環境によりcURLが本文送信前に接続を切り、
+        // GAS側に空ボディが届く(実事象)。必ず true にする。
+        'blocking'  => true,
         'sslverify' => true,
     ]);
+
+    // 失敗時のみエラーログに残す(成功時は何も出さない)
+    if (is_wp_error($response)) {
+        error_log('[spenda-forms-to-sheets] GAS送信失敗: ' . $response->get_error_message());
+    }
 }
