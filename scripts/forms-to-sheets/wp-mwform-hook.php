@@ -3,7 +3,7 @@
  * Plugin Name: SPENDA Forms-to-Sheets bridge
  * Description: MW WP Form の正常送信完了時に GAS Web App へ POST して Google Sheets に記録
  * Version:     1.0.0
- * Author:      SPENDA / openclaw-vps
+ * Author:      SPENDA / lead-sales
  *
  * 設置先:
  *   wp-content/mu-plugins/spenda-forms-to-sheets.php

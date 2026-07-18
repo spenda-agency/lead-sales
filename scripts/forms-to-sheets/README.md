@@ -3,6 +3,9 @@
 spendacorp.com の Web フォーム送信内容を **直接 Google Sheets に記録** するブリッジ。
 HubSpot を経由しない、サーバーサイド統合方式。
 
+> **このディレクトリ(spenda-agency/lead-sales)が正式な置き場(canonical)。**
+> openclaw-vps 側の同名ディレクトリは旧版であり、今後はこちらだけを更新する。
+
 ## アーキテクチャ
 
 ```
@@ -36,7 +39,8 @@ HubSpot を経由しない、サーバーサイド統合方式。
 - 送信内容の **アーカイブ目的なら HubSpot CRM は過剰**。Sheets で十分。
 - 既存の MW WP Form / `mail.php` フローは触らず、**並行で Sheets にも送る**(二重化)。
 - HubSpot サブスクリプション不要 / 月額ゼロ運用。
-- 既存の `scripts/hubspot-form-relay/`(Gmail→Claude→Slack 返信案)は別目的で共存。
+- openclaw-vps 側の `scripts/hubspot-form-relay/`(Gmail→Claude→Slack 返信案)は
+  別目的の別系統(このリポジトリには含まれない)。
 
 ## デプロイ手順
 
@@ -197,7 +201,7 @@ name等の列が空になる場合は、`gas-webapp.gs` の該当別名リスト
 cp mail.php mail.php.bak.$(date +%Y%m%d)
 
 # repo から取得して上書き (private repo の場合は手元で clone して scp)
-curl -fsSL https://raw.githubusercontent.com/spenda-agency/openclaw-vps/main/scripts/forms-to-sheets/spendacorp-mail.php \
+curl -fsSL https://raw.githubusercontent.com/spenda-agency/lead-sales/main/scripts/forms-to-sheets/spendacorp-mail.php \
   -o mail.php
 
 # 同階層に設定値ファイルを作成 (リポにコミットしない)
@@ -215,4 +219,4 @@ chmod 600 spenda-config.php
 
 - **対象 Sheet**: `1oELhU6ZZz2pjN_RylQ5NjidcS52nkbQa-4xqpOHm_K4` (フォーム関連)
 - **Slack 通知**: 未実装。必要なら GAS の `doPost` 内に Incoming Webhook 呼び出しを追加(別 PR 推奨)
-- **`scripts/hubspot-form-relay/`**: HubSpot 経由で Gmail を Claude に通す別系統 → 共存(返信案生成と問い合わせアーカイブで役割分担)
+- **openclaw-vps 側の `scripts/hubspot-form-relay/`**: HubSpot 経由で Gmail を Claude に通す別系統(このリポジトリには含まれない) → 共存(返信案生成と問い合わせアーカイブで役割分担)
