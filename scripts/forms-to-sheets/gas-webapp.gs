@@ -70,6 +70,7 @@ function firstFilled_(obj, keys) {
 function doPost(e) {
   try {
     if (!e || !e.postData || !e.postData.contents) {
+      Logger.log('doPost拒否: リクエストボディが空');
       return jsonResponse_({ ok: false, error: 'empty body' });
     }
     const body = JSON.parse(e.postData.contents);
@@ -77,9 +78,16 @@ function doPost(e) {
     // 共有シークレット検証(fail-closed: 未設定なら全リクエスト拒否)
     const expected = getSharedSecret_();
     if (!expected) {
+      Logger.log('doPost拒否: FORM_SHARED_SECRET がスクリプトプロパティに未設定');
       return jsonResponse_({ ok: false, error: 'server misconfigured: FORM_SHARED_SECRET not set' });
     }
     if (body.secret !== expected) {
+      // シークレット本体はログに出さない。突き合わせ用に長さと先頭4文字だけ出す
+      const got = String(body.secret || '');
+      Logger.log(
+        'doPost拒否: unauthorized (source=%s) 受信secret: 長さ%s 先頭"%s..." / 期待値: 長さ%s 先頭"%s..."',
+        body.source || '(なし)', got.length, got.slice(0, 4), expected.length, expected.slice(0, 4)
+      );
       return jsonResponse_({ ok: false, error: 'unauthorized' });
     }
 
@@ -103,9 +111,11 @@ function doPost(e) {
     const tab = getTabName_();
     const sheet = ss.getSheetByName(tab);
     if (!sheet) {
+      Logger.log('doPost拒否: タブ「%s」が見つからない', tab);
       return jsonResponse_({ ok: false, error: 'sheet tab not found: ' + tab });
     }
     sheet.appendRow(row);
+    Logger.log('doPost成功: source=%s form_id=%s を転記', body.source || '', body.form_id || '');
     return jsonResponse_({ ok: true, ts: new Date().toISOString() });
   } catch (err) {
     Logger.log('doPost error: ' + err.stack);
