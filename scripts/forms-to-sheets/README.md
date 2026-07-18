@@ -27,7 +27,8 @@ HubSpot を経由しない、サーバーサイド統合方式。
 | 経路 | 対象 | 実装ファイル |
 |---|---|---|
 | WP プラグイン | `/media/form-*`, `/media/dl-contents-form-content01-12` 等の MW WP Form 全フォーム | `wp-mwform-hook.php` |
-| PHP スニペット | `/contact.html` → `mail.php` | `contact-mail-snippet.php` |
+| PHP スニペット | `/contact.html` → `mail.php` | `contact-mail-snippet.php` / `spendacorp-mail.php` |
+| PHP フック(form-twig3) | ルート直下 `/form-webadsplus/` 等 5フォーム(Twig+YAML メーラー) | `form-twig3-hook.php` |
 | GAS Web App | 受信エンドポイント + Sheet 書き込み | `gas-webapp.gs`, `appsscript.json` |
 
 ## なぜ HubSpot を使わないか
@@ -105,10 +106,51 @@ timestamp | source | form_id | form_url | name | company | email | tel | kind | 
 3. `mail.php` の **末尾**(既存メール送信ロジックの後)に [contact-mail-snippet.php](contact-mail-snippet.php) の中身(`<?php` 行除く)を貼り付け
 4. テスト送信して Sheet に行が追加されるか確認
 
-### Step 5. 他のフォーム
+### Step 5. ルート直下の form-twig3 フォーム(第3形式)
 
-`/form-webadsplus/`, `/form-agency/` 等ルート直下の他フォームは別 PR で対応(構造未調査)。
-WP かどうかで Step 3 or Step 4 のどちらかに割り当て。
+`/form-webadsplus/`, `/form-agency/`, `/form-aibidatasupport/`,
+`/form-lsmultibuilder/`, `/form-lookerstudio-dx/` は、MW WP Form でも
+php-factory mail.php でもなく、**Twig + YAML ベースの独自PHPメーラー
+"form-twig3"**(各ディレクトリに `index.php` / `config.yaml` / Twigテンプレート)。
+5フォームはディレクトリ違いで構造は同一。専用フック
+[form-twig3-hook.php](form-twig3-hook.php) で対応する。
+
+各フォームのディレクトリ(`index.php` と同階層)で:
+
+1. `form-twig3-hook.php` を配置(このリポからコピー)
+2. 同階層に `spenda-config.php` を作成(リポにコミット禁止):
+   ```php
+   <?php
+   define('SPENDA_GAS_URL',    'https://script.google.com/macros/s/AKfy.../exec');
+   define('SPENDA_FORM_SECRET','step6 と同じシークレット');
+   ```
+3. `index.php` の exec アクション内、`setLog($data['yaml']['field'], $data['form']);`
+   の**直後**に2行追加:
+   ```php
+   require_once __DIR__ . '/form-twig3-hook.php';
+   spenda_twig_forms_to_sheets($data['form']);
+   ```
+   → メール送信が成功した場合のみ Sheet にも記録される(setLog 到達=送信成功)。
+4. テスト送信して Sheet の `シート1` に `source=php-twig` /
+   `form_id=<ディレクトリ名>` の行が追加されるか確認
+
+5フォームとも同じ手順(1〜4を各ディレクトリで実施)。`form_id` は
+ディレクトリ名から自動採番されるので、どのフォーム経由かは Sheet 上で判別できる。
+
+**フィールド列マッピングについて**: `config.yaml` のフィールド名はフォームにより
+異なりうるため、フックは `$data['form']` の全項目を送る。GAS 側(`gas-webapp.gs` の
+`firstFilled_`)が name/company/email/tel/kind/message を別名解決する。もし
+name等の列が空になる場合は、`gas-webapp.gs` の該当別名リストに実際のフィールド名
+(config.yaml の field キー)を追加すれば列に入るようになる。raw_json には常に
+全項目が残る。
+
+#### source 値の一覧(どの経路から来たか)
+
+| source | 経路 | 送信元ファイル |
+|---|---|---|
+| `wp-mwform` | /media/* の MW WP Form | `wp-mwform-hook.php` |
+| `php-mail` | contact.html → mail.php | `contact-mail-snippet.php` / `spendacorp-mail.php` |
+| `php-twig` | ルート直下 form-twig3(5フォーム) | `form-twig3-hook.php` |
 
 ## 運用
 
@@ -126,6 +168,7 @@ WP かどうかで Step 3 or Step 4 のどちらかに割り当て。
 | GAS の認証エラー | デプロイユーザーが Sheet 編集可能か | アクセス権限を見直し |
 | WP からだけ届かない | wp-config の 2 定数を確認 / mu-plugins に配置されているか | 再配置 |
 | mail.php からだけ届かない | サーバーの curl 拡張が有効か / spenda-config.php の require 行 | curl_init を error_log で出力して切り分け |
+| form-twig3 からだけ届かない | 各ディレクトリに `form-twig3-hook.php` と `spenda-config.php` があるか / index.php に require+呼び出し2行を追加したか / メール送信自体が成功しているか(setLog到達が前提) | 配置と2行追加を再確認 |
 | 大量スパム | reCAPTCHA は MW WP Form 側で機能(mwform_after_send は reCAPTCHA 後発火) | 必要なら GAS 側でも IP / honeypot ガード追加 |
 
 ### セキュリティ
@@ -143,6 +186,7 @@ WP かどうかで Step 3 or Step 4 のどちらかに割り当て。
 | `wp-mwform-hook.php` | WordPress `wp-content/mu-plugins/spenda-forms-to-sheets.php` |
 | `contact-mail-snippet.php` | 汎用版: 既存 `mail.php` の末尾に追記する形(別ホスト向け) |
 | `spendacorp-mail.php` | **spendacorp.com 専用 mail.php 全置換版** (既存 GAS 統合 AKfycbyG8ZE6nAU... を廃止し共有シークレット方式に統一) |
+| `form-twig3-hook.php` | ルート直下 form-twig3 フォーム用フック。各フォームディレクトリに配置し `index.php` から呼び出す(Step 5) |
 
 ### spendacorp.com の mail.php を置き換える場合
 
