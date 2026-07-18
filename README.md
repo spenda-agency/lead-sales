@@ -123,7 +123,7 @@ Apps Script エディタ > プロジェクトの設定 > スクリプト プロ�
 1. Apps Scriptエディタで「デプロイ」→「新しいデプロイ」→種類「ウェブアプリ」
    - 実行するユーザー: 自分
    - アクセスできるユーザー: 全員
-2. 発行されたURLを LINE Developers コンソールの
+2. 発行されたURLに `?source=line` を付けて LINE Developers コンソールの
    Messaging API設定 > Webhook URL に設定し、Webhookを有効化する
 3. 友だち追加(follow)イベントが届くと、自動的に `②LINE登録者` シートへ
    表示名とユーザーIDが追記される
@@ -132,6 +132,13 @@ Apps Script エディタ > プロジェクトの設定 > スクリプト プロ�
 LINEの署名検証(x-line-signature)はこの実装では行っていない。
 より厳密にしたい場合は、ヘッダーを扱える別の実行環境（Cloud Functions等）を
 Webhook受け口にし、そこからこのスプレッドシートへ書き込む構成に変更すること。
+
+### 5. WordPressフォームの自動転記を設定する
+
+自社サイト(/media/配下のWordPress)の問い合わせ・資料DLフォームを、
+指定のスプレッドシートに自動転記できる。同じウェブアプリURLに
+`?source=wpform&token=...` を付けてWordPress側から送信する。
+詳細な手順は [docs/wordpress-webhook-setup.md](docs/wordpress-webhook-setup.md) を参照。
 
 ## 日常の使い方
 

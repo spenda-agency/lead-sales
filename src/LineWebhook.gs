@@ -12,19 +12,17 @@
  * ヘッダーを扱える実行環境を別途用意することを検討する。
  *
  * 設定手順:
- * 1. このプロジェクトを「ウェブアプリとしてデプロイ」し、発行されたURLを
- *    LINE Developers コンソールの Messaging API > Webhook URL に設定する
+ * 1. WebhookRouter.gs の手順でウェブアプリをデプロイし、発行されたURLに
+ *    「?source=line」を付けて LINE Developers コンソールの
+ *    Messaging API > Webhook URL に設定する
  * 2. Script Properties に LINE_CHANNEL_ACCESS_TOKEN を設定する
  */
 const SOURCE2_SHEET_HEADERS = ['登録日時', '表示名', 'LINEユーザーID', 'メモ'];
 
-function doPost(e) {
-  try {
-    const body = JSON.parse(e.postData.contents);
-    (body.events || []).forEach(handleLineEvent_);
-  } catch (err) {
-    Logger.log('doPost error: %s', err);
-  }
+/** WebhookRouterから呼ばれるLINEイベント処理本体 */
+function handleLinePost_(e) {
+  const body = JSON.parse(e.postData.contents);
+  (body.events || []).forEach(handleLineEvent_);
   return ContentService.createTextOutput('ok');
 }
 

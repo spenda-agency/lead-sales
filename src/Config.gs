@@ -39,6 +39,13 @@ function getConfig() {
     // 'count'(累積カウントの差分で加点) or 'date'(基準日時より新しい開封が1件でもあれば加点)
     hubspotEmailOpenPropertyType: get('HUBSPOT_EMAIL_OPEN_PROPERTY_TYPE', 'date'),
 
+    // --- WordPressフォーム転記先 ---
+    // 転記先スプレッドシートのID(URLの /d/ と /edit の間の文字列)
+    formSheetId: get('FORM_SHEET_ID', '1oELhU6ZZz2pjN_RylQ5NjidcS52nkbQa-4xqpOHm_K4'),
+    formSheetTabName: get('FORM_SHEET_TAB_NAME', 'シート1'),
+    // WordPress側からのWebhookに付ける合言葉。推測されない文字列を設定すること
+    formWebhookToken: get('FORM_WEBHOOK_TOKEN', ''),
+
     // --- スプレッドシートのタブ名 ---
     reviewSheetName: get('REVIEW_SHEET_NAME', 'リード確認'),
     source1SheetName: get('SOURCE1_SHEET_NAME', '①HP問い合わせ'),
@@ -69,6 +76,8 @@ function checkConfig() {
   Logger.log('SLACK_WEBHOOK_URL 設定済み: %s', !!config.slackWebhookUrl);
   Logger.log('HUBSPOT_API_TOKEN 設定済み: %s', !!config.hubspotApiToken);
   Logger.log('HUBSPOT_HOUSE_LIST_ID: %s', config.hubspotHouseListId || '(未設定・全コンタクト対象)');
+  Logger.log('FORM_SHEET_ID: %s', config.formSheetId);
+  Logger.log('FORM_WEBHOOK_TOKEN 設定済み: %s', !!config.formWebhookToken);
   Logger.log('SENDER_EMAIL: %s', config.senderEmail || '(未設定)');
   Logger.log('EMAIL_SEND_MODE: %s', config.emailSendMode);
 }
