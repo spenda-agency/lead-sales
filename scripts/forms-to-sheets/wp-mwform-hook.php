@@ -2,30 +2,33 @@
 /**
  * Plugin Name: SPENDA Forms-to-Sheets bridge
  * Description: MW WP Form の正常送信完了時に GAS Web App へ POST して Google Sheets に記録
- * Version:     1.0.0
+ * Version:     1.2.0
  * Author:      SPENDA / lead-sales
  *
  * 設置先:
  *   wp-content/mu-plugins/spenda-forms-to-sheets.php
  *   ※ mu-plugins 配下は自動有効化(WordPress 管理画面での有効化不要)
+ *   ※ 更新が反映されたかは、管理画面 > プラグイン > 必須 タブの
+ *     「バージョン」表示で確認できる(このファイルは 1.2.0)
  *
  * 設定:
  *   wp-config.php に下記 2 行を追加(repo にはコミットしない):
  *     define('SPENDA_GAS_URL',    'https://script.google.com/macros/s/AKfy.../exec');
  *     define('SPENDA_FORM_SECRET','GAS の Script Properties と同じシークレット文字列');
  *
- *   このファイル自体は repo から `git pull` でアップデート、定数は wp-config.php に置く
- *   ことで「コードと設定値を分離」。
+ *   デバッグしたい場合はさらに下記を追加すると、送信のたびに
+ *   wp-content/uploads/spenda-forms-to-sheets.log に記録される(解決後は削除):
+ *     define('SPENDA_FORMS_DEBUG', true);
  *
  * 対象フォーム:
  *   spendacorp.com/media/* 配下の MW WP Form 全フォーム(20+ 個)
  *   フォーム ID 別の特殊処理が必要になったら $form_id を分岐させて拡張する。
  *
  * 安全策:
- *   - blocking=true + timeout 5s。blocking=false はホスティング環境(mixhost等)の
- *     cURLで本文送信前に接続が切られ、GAS側に「空ボディ」が届く事象を確認したため
- *     使用しない。送信失敗してもフォーム処理自体には影響しない
- *   - sslverify=true で証明書検証(GAS の証明書)
+ *   - 送信は直接 cURL(タイムアウト5s)。wp_remote_post は本ホスティング環境で
+ *     リクエスト本文が GAS に届かない事象(空ボディ)を確認したため使わない。
+ *     cURL が無い環境でのみ wp_remote_post にフォールバックする
+ *   - SSL証明書検証あり / 送信失敗してもフォーム処理自体には影響しない
  *   - 内部用フィールド(mw_ 系 / recaptcha / wp_nonce / _wp 系)はマスク
  *   - メール送信が成功した時点でフックされる(`mwform_after_send`)→ reCAPTCHA で
  *     弾かれた送信は記録されない(ノイズ防止)
@@ -89,19 +92,65 @@ function spenda_forms_after_send($Data) {
         'secret'   => defined('SPENDA_FORM_SECRET') ? SPENDA_FORM_SECRET : '',
     ];
 
-    $response = wp_remote_post(SPENDA_GAS_URL, [
-        'method'    => 'POST',
-        'headers'   => ['Content-Type' => 'application/json'],
-        'body'      => wp_json_encode($payload),
-        'timeout'   => 5,
-        // blocking=false だと環境によりcURLが本文送信前に接続を切り、
-        // GAS側に空ボディが届く(実事象)。必ず true にする。
-        'blocking'  => true,
-        'sslverify' => true,
-    ]);
-
-    // 失敗時のみエラーログに残す(成功時は何も出さない)
-    if (is_wp_error($response)) {
-        error_log('[spenda-forms-to-sheets] GAS送信失敗: ' . $response->get_error_message());
+    $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+    if ($json === false) {
+        spenda_forms_debug_log_('json_encode失敗: ' . json_last_error_msg());
+        return;
     }
+
+    // wp_remote_post は本環境で本文が届かない事象があったため、直接 cURL で送る
+    if (function_exists('curl_init')) {
+        $ch = curl_init(SPENDA_GAS_URL);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $json,
+            // 'Expect:' 空指定で 100-continue ハンドシェイクを無効化
+            // (途中経路によっては本文が送信されない原因になるため)
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Expect:'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 5,
+            CURLOPT_CONNECTTIMEOUT => 3,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_SSL_VERIFYPEER => true,
+        ]);
+        $resp = curl_exec($ch);
+        $err  = curl_error($ch);
+        $code = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+
+        spenda_forms_debug_log_(sprintf(
+            'curl送信 form_id=%s json=%dバイト http=%s resp=%s err=%s',
+            $form_id, strlen($json), $code,
+            substr((string) $resp, 0, 200), $err ?: '(なし)'
+        ));
+    } else {
+        $response = wp_remote_post(SPENDA_GAS_URL, [
+            'method'    => 'POST',
+            'headers'   => ['Content-Type' => 'application/json'],
+            'body'      => $json,
+            'timeout'   => 5,
+            'blocking'  => true,
+            'sslverify' => true,
+        ]);
+        spenda_forms_debug_log_(sprintf(
+            'wp_remote_post送信 form_id=%s json=%dバイト 結果=%s',
+            $form_id, strlen($json),
+            is_wp_error($response)
+                ? 'エラー: ' . $response->get_error_message()
+                : 'http=' . wp_remote_retrieve_response_code($response) . ' resp=' . substr(wp_remote_retrieve_body($response), 0, 200)
+        ));
+    }
+}
+
+/** SPENDA_FORMS_DEBUG が true のときだけ wp-content/uploads/ にログを書く */
+function spenda_forms_debug_log_($message) {
+    if (!defined('SPENDA_FORMS_DEBUG') || !SPENDA_FORMS_DEBUG) {
+        return;
+    }
+    $dir = defined('WP_CONTENT_DIR') ? WP_CONTENT_DIR . '/uploads' : __DIR__;
+    @file_put_contents(
+        $dir . '/spenda-forms-to-sheets.log',
+        date('Y-m-d H:i:s') . "\t" . $message . "\n",
+        FILE_APPEND
+    );
 }
