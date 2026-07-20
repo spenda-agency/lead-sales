@@ -77,14 +77,30 @@ if (!function_exists('spenda_twig_forms_to_sheets')) {
         curl_setopt_array($ch, array(
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => $json,
-            CURLOPT_HTTPHEADER     => array('Content-Type: application/json'),
+            // 'Expect:' 空指定で 100-continue を無効化(本文欠落=空ボディの予防)
+            CURLOPT_HTTPHEADER     => array('Content-Type: application/json', 'Expect:'),
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => 5,
             CURLOPT_CONNECTTIMEOUT => 3,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_SSL_VERIFYPEER => true,
         ));
-        @curl_exec($ch);
+        $resp = @curl_exec($ch);
+        $err  = curl_error($ch);
+        $code = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         @curl_close($ch);
+
+        // デバッグログ: spenda-config.php に define('SPENDA_FORMS_DEBUG', true); を
+        // 追加すると同階層に spenda-forms.log を出力する(解決後は外す)
+        if (defined('SPENDA_FORMS_DEBUG') && SPENDA_FORMS_DEBUG) {
+            @file_put_contents(
+                __DIR__ . '/spenda-forms.log',
+                date('Y-m-d H:i:s') . "\t" . sprintf(
+                    'form-twig3 form_id=%s json=%dバイト http=%s resp=%s err=%s',
+                    basename(__DIR__), strlen($json), $code, substr((string) $resp, 0, 200), $err ?: '(なし)'
+                ) . "\n",
+                FILE_APPEND
+            );
+        }
     }
 }

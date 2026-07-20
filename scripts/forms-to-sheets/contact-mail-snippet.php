@@ -55,7 +55,9 @@ if (defined('SPENDA_GAS_URL') && SPENDA_GAS_URL) {
     curl_setopt_array($sp_ch, [
         CURLOPT_POST            => true,
         CURLOPT_POSTFIELDS      => $sp_json,
-        CURLOPT_HTTPHEADER      => ['Content-Type: application/json'],
+        // 'Expect:' 空指定で 100-continue を無効化(途中経路で本文が
+        // 送られず GAS に空ボディが届く事象の予防)
+        CURLOPT_HTTPHEADER      => ['Content-Type: application/json', 'Expect:'],
         CURLOPT_RETURNTRANSFER  => true,
         CURLOPT_TIMEOUT         => 5,
         CURLOPT_CONNECTTIMEOUT  => 3,
@@ -64,10 +66,19 @@ if (defined('SPENDA_GAS_URL') && SPENDA_GAS_URL) {
     ]);
     $sp_resp = @curl_exec($sp_ch);
     $sp_err  = curl_error($sp_ch);
+    $sp_code = curl_getinfo($sp_ch, CURLINFO_RESPONSE_CODE);
     @curl_close($sp_ch);
 
-    // デバッグログ(本番では削除可)
-    // @file_put_contents(__DIR__ . '/spenda-forms.log',
-    //     date('c') . "\t" . substr($sp_resp ?: $sp_err ?: 'no-resp', 0, 200) . "\n",
-    //     FILE_APPEND);
+    // デバッグログ: spenda-config.php に define('SPENDA_FORMS_DEBUG', true); を
+    // 追加すると mail.php と同じ階層に spenda-forms.log を出力する(解決後は外す)
+    if (defined('SPENDA_FORMS_DEBUG') && SPENDA_FORMS_DEBUG) {
+        @file_put_contents(
+            __DIR__ . '/spenda-forms.log',
+            date('Y-m-d H:i:s') . "\t" . sprintf(
+                'contact-html json=%dバイト http=%s resp=%s err=%s',
+                strlen($sp_json), $sp_code, substr((string) $sp_resp, 0, 200), $sp_err ?: '(なし)'
+            ) . "\n",
+            FILE_APPEND
+        );
+    }
 }
